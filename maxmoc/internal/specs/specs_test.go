@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/getkin/kin-openapi/openapi3"
 )
 
 func load(t *testing.T) *Specs {
@@ -336,5 +338,12 @@ func TestRelaxURLSchemeRejectsUnexpectedPattern(t *testing.T) {
 	}
 	if err := relaxURLScheme("проверка", nil); err == nil {
 		t.Error("отсутствие поля не считается ошибкой")
+	}
+
+	// Отписка: шаблон не правится, а сверяется. Строгий https-шаблон
+	// сделал бы http-подписку неснимаемой — страж обязан его заметить.
+	strict := &openapi3.SchemaRef{Value: &openapi3.Schema{Pattern: httpsWebhookURL}}
+	if err := requireAnyStringURL("проверка", strict); err == nil {
+		t.Error("страж отписки не заметил строгого https-шаблона")
 	}
 }
