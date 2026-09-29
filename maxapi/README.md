@@ -271,7 +271,7 @@ make example-quicktype
    8-4-4-4-12 через дефисы. Регистрируемый `url` должен оканчиваться этим
    путём.
 3. Платформа шлёт на ваш URL `POST` с `Content-Type: application/json`;
-   тело — событие (тип в поле `update_type`, 16 вариантов:
+   тело — событие (тип в поле `update_type`, 15 вариантов:
    `message_created`, `message_callback`, `bot_started`, …). В
    `openapi.MaxBotWebhook.json` тело операции — `anyOf` из двух
    эквивалентных представлений на выбор:
@@ -279,7 +279,7 @@ make example-quicktype
      общие поля обязательны, все вариативные опциональны, у каждого в
      описании указано, при каких `update_type` оно приходит. Один класс на
      все события — просто десериализовать.
-   - **`WebhookUpdate`** — строгий `oneOf` из 16 конкретных типов для
+   - **`WebhookUpdate`** — строгий `oneOf` из 15 конкретных типов для
      типизированной кодогенерации, с `discriminator` по `update_type`:
      валидатор сразу переходит к нужному варианту и называет виноватое
      поле вместо `doesn't match any schema from "anyOf"`.
@@ -326,7 +326,7 @@ python3 scripts/compare.py
   `compare.py`, либо в этом README.
 
 Финальная строка — `Итого: N расхождений, M известных отличий`. Текущее
-состояние: **8 расхождений, 1485 известных отличий** — см. раздел «Статус».
+состояние: **8 расхождений, 1227 известных отличий** — см. раздел «Статус».
 Все восемь — отсутствующие пути `/chats*`: `routes/chats.tsp` намеренно не
 подключён в `main.tsp`.
 
@@ -352,7 +352,7 @@ python3 scripts/compare.py
 | 2 | Схема **`bigint`** оригинала не воспроизводится. | Это служебный алиас `{type: integer, format: int64}` — техническая деталь генератора оригинала, не самостоятельная сущность домена. Мы используем `int64` напрямую. Схема внесена в `NAME_ALLOW_MISSING` в `scripts/compare.py`, поэтому её отсутствие не считается пропущенной схемой. |
 | 3 | **`uniqueItems`** (7 мест: `ChatMember.permissions`, `ChatAdmin.permissions`, `Subscription.update_types`, `SubscriptionRequestBody.update_types`, `UserIdsList.user_ids`, параметры `permissions` у `GET /chats/{chatId}/members` и `types` у `GET /updates`) и **`readOnly`** (1 значимое место — `User.name`; остальные 92 места в оригинале — явное `readOnly: false`, т.е. дефолт, не несущий смысла) не переносятся в TypeSpec. | В TypeSpec нет прямого аналога `uniqueItems` для массивов; `readOnly` на `User.name` — семантическая деталь, не влияющая на структуру запросов/ответов бота. `scripts/compare.py` не включает ни `uniqueItems`, ни `readOnly` в список сравниваемых `CONSTRAINTS`, поэтому это осознанно не проверяется (тихий пропуск, а не `KNOWN`-паттерн). |
 | 4 | **`UserIdsList`** (тело `POST /chats/{chatId}/members`): в оригинале — параметро-подобная обёртка (вложенный `schema`, `style`, строковый `maxItems: "100"` на `items`); у нас — чистый `@maxItems(100) user_ids: int64[]`. | Оригинал скопировал форму OpenAPI-параметра внутрь тела запроса (артефакт генератора). Мы транскрибируем содержательный смысл ограничения. Схема UserIdsList эмитится и ссылается одинаково с обеих сторон; diff проявляется только на уровне requestBody, потому что $ref-пара впервые посещается при обходе paths.* (он идёт раньше цикла по components.schemas), и повторный визит гасится кэшем дедупликации compare.py. |
-| 5 | **Дискриминаторы**: `ChatButton` (`"chat"`), `DataAttachment` (`"data"`), `ReplyKeyboardAttachment`/`ReplyKeyboardAttachmentRequest` (`"reply_keyboard"`), `MessageChatCreatedUpdate` (`"message_chat_created"`) — литералы отсутствуют в `discriminator.mapping` соответствующих базовых схем оригинала (`Button`, `Attachment`, `AttachmentRequest`, `Update`), хотя сами схемы-наследники присутствуют и структурно однозначно соответствуют этим ключам. | Недосмотр оригинала: mapping соседних дискриминаторов (`callback`, `link`, `photo`, `message_created` и т.д.) заполнен полностью, а эти четыре — пропущены. Значения литералов выведены по конвенции имени схемы и соседних ключей (**задокументировано как обоснованная догадка**, не как гарантированный факт из оригинала). Каждый случай — отдельный точечный regex в `DEVIATIONS` (`mapping[chat]`, `mapping[data]`, `mapping[reply_keyboard]`, `message_chat_created`). |
+| 5 | **Дискриминаторы**: `ChatButton` (`"chat"`), `DataAttachment` (`"data"`), `ReplyKeyboardAttachment`/`ReplyKeyboardAttachmentRequest` (`"reply_keyboard"`) — литералы отсутствуют в `discriminator.mapping` соответствующих базовых схем оригинала (`Button`, `Attachment`, `AttachmentRequest`), хотя сами схемы-наследники присутствуют и структурно однозначно соответствуют этим ключам. | Недосмотр оригинала: mapping соседних дискриминаторов (`callback`, `link`, `photo`, `message_created` и т.д.) заполнен полностью, а эти четыре — пропущены. Значения литералов выведены по конвенции имени схемы и соседних ключей (**задокументировано как обоснованная догадка**, не как гарантированный факт из оригинала). Каждый случай — отдельный точечный regex в `DEVIATIONS` (`mapping[chat]`, `mapping[data]`, `mapping[reply_keyboard]`). Четвёртый такой случай, `message_chat_created`, снят вместе с самим событием (п. 19). |
 | 6 | **`ReplyButton`** (и его дочерние формы по `<mapping>`-цепочке компаратора) в оригинале **не объявляет** свойство `type` в `properties`, несмотря на то что `type` — поле дискриминатора `Button`. У нас `type` объявлен явно (как и у всех прочих наследников `Button`). | Непоследовательность оригинала: у всех остальных наследников `Button` поле дискриминатора объявлено. Мы эмитируем `type` единообразно — это корректно с точки зрения OpenAPI (поле дискриминатора обязано быть объявлено у каждого варианта). В 0.0.33 оригинал начал требовать `type` в `required`, по-прежнему не объявляя его в `properties`: половина отклонения закрылась, паттерн по `required` снят. |
 | 7 | **`MessageBody`**: два бага оригинала. (а) `required` перечисляет `'link'`, хотя такого свойства нет в `properties` вообще (рудимент копипасты из `required` схемы `Message`). (б) свойство `attachments` содержит паразитный вложенный ключ `"required": false` внутри самой схемы свойства — невалидная конструкция OpenAPI (`required` — атрибут уровня схемы-объекта, а не отдельного свойства). | Мы не эмитируем несуществующее свойство как `required` и не производим невалидную конструкцию. `MessageBody` встречается по ссылке в огромном числе контекстов (`Message.body`, `LinkedMessage.message`, `Chat.pinned_message`, все варианты `Update`, plus все операции, возвращающие `Chat`/`Message`/списки — Task 9), поэтому в `compare.py` эти два случая заякорены не по префиксу пути, а по уникальному телу diff-сообщения (`required: официально ['attachments', 'link', 'mid', 'seq', 'text']...` и `attachments: required: официально False...`) — этот набор уникален для `MessageBody` во всей схеме. |
 | 8 | **`VideoAttachment.thumbnail`**: в оригинале одновременно объявлен как `type: "string"` **и** как `allOf`-ссылка на объектную схему `VideoThumbnail` (`{url: string}`) — противоречие. Мы выбрали объектный вариант. | Подтверждается аналогией: `VideoAttachmentDetails.thumbnail` в том же оригинале типизирован как `PhotoAttachmentPayload` (объект), т.е. `type: "string"` у `VideoAttachment.thumbnail` — явный рудимент более ранней версии схемы, где миниатюра была просто URL-строкой. Заякорено regex по diff-сообщению `attachments[]...thumbnail: type: официально 'string'`, встречается и в `schemas.*`, и в `paths.*` (Task 9 — любая операция, возвращающая вложение, заново раскрывает `Attachment`). |
@@ -366,6 +366,8 @@ python3 scripts/compare.py
 | 16 | **Наследование без `allOf`**: `UserWithPhoto`, `BotInfo`, `ChatMember` и `{File,Media,Sticker}AttachmentPayload` вписывают поля базы spread'ом (`...User`), а не через `extends`; база `AttachmentPayload`, на которую больше никто не ссылается, вырезается как недостижимая. | Atlassian `swagger-request-validator` (валидатор периметра) по умолчанию сам дописывает `additionalProperties: false` в каждую схему с `properties`, где флаг не задан (`AdditionalPropertiesInjectionTransformer`, ключ `validation.schema.additionalProperties`). Ветвь `allOf` базы после этого отвергает поля наследника: на живом MAX так падали стикеры, `GET /me` и по построению — каждое вложение `file`/`audio`/`video`. Сверка `allOf` разворачивает, поэтому расхождений форма не даёт; пропажа `AttachmentPayload` заглушена поимённо рядом с остальными недостижимыми схемами. |
 | 17 | **`FileAttachmentPayload.fileId`** и **`MediaAttachmentPayload.id`** — необязательные `int64`, которых нет ни в оригинале, ни в документации. | Живой MAX присылает их во вложениях `file` и `audio`/`video` (снято 2026-09-28). Схемы запечатаны, и без объявления каждое сообщение с файлом, голосовым или видео отвергали бы оба валидатора — и `kin-openapi`, и Atlassian. `fileId` документация упоминает только в ответе на загрузку файла. |
 | 18 | **`CallbackAnswer.notification`** — одноразовое уведомление в ответ на нажатие кнопки, `maxLength: 4000` по аналогии с текстом сообщения. | Есть в официальной спецификации [max-messenger/api-schema](https://github.com/max-messenger/api-schema), но отсутствует в схеме с dev.max.ru, с которой снят `reference/`. Без него бот не может ответить на нажатие, не меняя сообщение. Лимита в оригинале нет. Проверено на живом MAX (2026-09-28): `{"notification": ...}` показывает всплывающее уведомление и оставляет сообщение как есть; вместе с `message` уведомление показывается, а сообщение заменяется. |
+| 19 | **Событие `message_chat_created`** (`MessageChatCreatedUpdate`) не описано; вместе с ним ушли поля `UpdateUnified.chat`/`start_payload`, а схема `Chat` с зависимостями (`ChatStatus`, `Image`, `UserWithPhoto`) стала нужна только выключенным маршрутам `/chats` и вырезается как недостижимая. | Этого события нет ни в официальной спецификации [max-messenger/api-schema](https://github.com/max-messenger/api-schema), ни в каталоге событий на dev.max.ru, а в оригинале оно не попало даже в `Update.discriminator.mapping`. Оно единственное тянуло в контракт `Chat` со словарём `participants` (`additionalProperties: {$ref: SafeInt64}`), который КБ-валидатор в Jenkins отвергает. Приходит оно только при создании группового чата кнопкой `chat` — вне объёма; если MAX всё же пришлёт его, периметр отвергнет. |
+| 20 | **`PhotoAttachmentRequestPayload.photos`** — словаря токенов в теле отправки фото нет; `PhotoToken` вырезается как недостижимая. | Словарь (`additionalProperties: {$ref: PhotoToken}`) КБ-валидатор в Jenkins отвергает: у object-схемы должно быть `additionalProperties: false`. Документация MAX отправляет фото через `payload: {token}` или `{url}`; словарь `photos` — форма ответа на загрузку, токен из него кладётся в `token`. |
 
 ### Нормализации сверки (не отличия спецификации, а шум эмиттера/оригинала)
 
@@ -506,14 +508,14 @@ BotStartedUpdate:  {type: object, properties, required, additionalProperties: fa
                     allOf: [$ref Update], description}
 
 # СТАЛО
-Update:            {oneOf: [...16 ссылок], discriminator, description}
+Update:            {oneOf: [...15 ссылок], discriminator, description}
 BotStartedUpdate:  {type: object, properties, required: <свой + базы>,
                     additionalProperties: false, description}
 ```
 
-Расплющиваются все шесть дискриминаторных семейств: `Update` (16 вариантов),
+Расплющиваются все шесть дискриминаторных семейств: `Update` (15 вариантов),
 `Attachment` (11), `AttachmentRequest` (10), `MarkupElement` (10), `Button`
-(8), `ReplyButton` (3) — 58 вариантов в `MaxBotApi`, 48 в `MaxBotWebhook`
+(8), `ReplyButton` (3) — 57 вариантов в `MaxBotApi`, 47 в `MaxBotWebhook`
 (там нет `AttachmentRequest`).
 
 **Файл при этом становится короче**, а не длиннее (−100 и −82 строки):
@@ -546,19 +548,19 @@ BotStartedUpdate:  {type: object, properties, required: <свой + базы>,
 
 | Что | `MaxBotApi` | `MaxBotWebhook` | Можно ли убрать |
 |---|---:|---:|---|
-| `allOf: [$ref]` + `description` — ссылка с описанием | 47 | 39 | нет, см. ниже |
-| `allOf: [$ref]` + `nullable`/`description` | 13 | 9 | нет: `nullable` рядом с `$ref` — это семантика, а не оформление; `type: object`, который ставил рядом эмиттер, снят (см. «Где нет `additionalProperties: false`») |
+| `allOf: [$ref]` + `description` — ссылка с описанием | 43 | 34 | нет, см. ниже |
+| `allOf: [$ref]` + `nullable`/`description` | 10 | 6 | нет: `nullable` рядом с `$ref` — это семантика, а не оформление; `type: object`, который ставил рядом эмиттер, снят (см. «Где нет `additionalProperties: false`») |
 | `allOf: [$ref]` + свои `properties` — обычное наследование | 0 | 0 | убрано: поля базы вписаны spread'ом (ниже) |
 | `oneOf` + `discriminator` + `description` — базы | 6 | 7 | это и есть целевая форма |
 | `anyOf` без соседних ключей — тело вебхука | — | 1 | можно, но это решение по продукту, а не требование формата (ниже) |
-| **Итого** | **66** | **55** | |
+| **Итого** | **59** | **47** | |
 
 Для сравнения: официальная схема MAX содержит **125** композитных узлов, из
 них **110** с посторонними ключами — в том числе 54 узла настоящего
 `allOf`-наследования, которого у нас теперь не осталось вовсе. По этому
 требованию наш документ уже чище оригинала.
 
-**Про `allOf: [$ref]` + `description` (86 узлов, две трети остатка).** В
+**Про `allOf: [$ref]` + `description` (77 узлов, две трети остатка).** В
 OpenAPI 3.0 `$ref` рядом с другими ключами игнорируется, поэтому одиночную
 ссылку приходится заворачивать в `allOf`, если рядом нужно описание. Два
 очевидных обходных пути проверены и отвергнуты — оба замером, а не
@@ -608,8 +610,8 @@ OpenAPI 3.0 `$ref` рядом с другими ключами игнориру�
 
 У этого узла есть цена, которую стоит знать: `anyOf` проходит при совпадении
 **хотя бы одной** ветви, а `UpdateUnified` требует всего `update_type` и
-`timestamp`. Значит для валидатора, который сверяет тело с операцией, 37
-обязательных полей 16 типов событий становятся необязательными: проходят
+`timestamp`. Значит для валидатора, который сверяет тело с операцией, 35
+обязательных полей 15 типов событий становятся необязательными: проходят
 `message_created` без `message`, `user_added` без `chat_id`, событие с
 неизвестным `update_type` и даже смесь полей от разных вариантов. Это ровно
 та же дыра, что закрыло расплющивание, только уровнем выше. Потребителю,
@@ -618,7 +620,7 @@ OpenAPI 3.0 `$ref` рядом с другими ключами игнориру�
 делает `maxmoc` (см. `ValidateWebhookBody` и раздел «Соответствие контракту»
 в его README).
 
-Вывод: **66 и 55 — это пол для OpenAPI 3.0 с этим эмиттером**, а не
+Вывод: **59 и 47 — это пол для OpenAPI 3.0 с этим эмиттером**, а не
 недоделка.
 
 Всё перечисленное продублировано в самих документах:
@@ -635,7 +637,7 @@ YAML не нужно держать этот README перед глазами; �
 `WebhookUpdate` (в `openapi.MaxBotWebhook.yaml`) приходит в форме `oneOf`
 прямо из TypeSpec — это `union` с `@discriminated`, и `discriminator` с
 полным `mapping` у него теперь тоже есть. Без него `kin-openapi` перебирал
-все 16 ветвей и выдавал бесполезное `doesn't match any schema from "anyOf"`,
+все 15 ветвей и выдавал бесполезное `doesn't match any schema from "anyOf"`,
 не называя виноватое поле; с ним диагностика указывает конкретный вариант.
 Скрипт снимает у него единственный лишний ключ — `type: object`, который
 эмиттер проставляет рядом с `oneOf`.
@@ -644,15 +646,22 @@ YAML не нужно держать этот README перед глазами; �
 
 Требование КБ [59] — «явные свойства и `additionalProperties: false` у каждой
 object-схемы». Эмиттер (`seal-object-schemas: true`) ставит флаг всем
-object-схемам, кроме тех, где он сломал бы семантику; после сборки таких
-остаётся 2 в `MaxBotApi` и 1 в `MaxBotWebhook` — только словари.
+object-схемам. После сборки схем без флага не остаётся ни в одном документе.
 
-| Что | `MaxBotApi` | `MaxBotWebhook` | Почему нельзя |
-|---|---:|---:|---|
-| `{type: object, additionalProperties: {$ref}}` — словарь (`Chat.participants`, `PhotoAttachmentRequestPayload.photos`) | 2 | 1 | ключи динамические (`user_id → время активности`), в `properties` их не перечислить, `patternProperties` в OpenAPI 3.0 нет; `additionalProperties` здесь — схема значений, `false` сделал бы словарь всегда пустым. В оригинале записано так же |
+Последними без флага были два словаря — `{type: object, additionalProperties:
+{$ref}}` с динамическими ключами: `Chat.participants` (`user_id` → время
+активности) и `PhotoAttachmentRequestPayload.photos` (id фото → токен).
+Запечатать словарь нельзя: `additionalProperties` там — схема значений,
+`false` сделал бы его всегда пустым, а `patternProperties` в OpenAPI 3.0 нет.
+Наш `validate_kb.py` словари допускал, но КБ-валидатор в Jenkins требует
+`additionalProperties: false` буквально, поэтому оба ушли из контракта:
+`Chat.participants` — вместе со схемой `Chat`, когда убрали событие
+`message_chat_created` (п. 19 таблицы отличий), `photos` — из тела отправки
+фото, которое документация MAX и так передаёт через `token` или `url`
+(п. 20).
 
-**Nullable-обёртки `{allOf: [$ref], nullable: true}`** (`Chat.icon`,
-`Chat.pinned_message`, `CallbackAnswer.message`; 12 позиций в `MaxBotApi` и 9
+**Nullable-обёртки `{allOf: [$ref], nullable: true}`** (`Message.link`,
+`NewMessageBody.link`, `CallbackAnswer.message`; 9 позиций в `MaxBotApi` и 6
 в `MaxBotWebhook`) в эту таблицу не попадают. Эмиттер ставил им `type: object`
 для `Model | null`, потому что по OAS 3.0.3 `nullable` действует только рядом
 с явным `type`, и правило [59] срабатывало именно на него. Поставить флаг на
@@ -708,7 +717,7 @@ spread'ом (см. «Про обычное наследование»), и `User
 ```
 $ make test
 ...
-Итого: 8 расхождений, 1485 известных отличий       # scripts/compare.py
+Итого: 8 расхождений, 1227 известных отличий       # scripts/compare.py
 Итого: 0 нарушений требований КБ                    # scripts/validate_kb.py
 ```
 

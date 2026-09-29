@@ -24,7 +24,6 @@ OURS = ROOT / "tsp-output" / "@typespec" / "openapi3" / "openapi.MaxBotApi.yaml"
 # README «Отличия от официальной схемы». Каждый паттерн должен быть максимально
 # точечным, чтобы не глушить непредвиденные расхождения в том же поддереве.
 DEVIATIONS = [
-    r"message_chat_created",  # отсутствует в mapping оригинала (недосмотр)
     r"mapping\[chat\]",  # ChatButton есть в схемах, но отсутствует в Button.discriminator.mapping оригинала (недосмотр)
     # Оригинал не объявляет свойство `type` в properties у ReplyButton (и его
     # наследников по <mapping>-цепочке), хотя дискриминатор задан — в отличие
@@ -77,6 +76,22 @@ DEVIATIONS = [
     # валидаторами — и kin-openapi, и Atlassian.
     r"(^schemas\.FileAttachmentPayload|<file>\.payload)\.fileId: лишнее свойство у нас$",
     r"(^schemas\.MediaAttachmentPayload|<(audio|video)>\.payload)\.id: лишнее свойство у нас$",
+    # Событие message_chat_created (MessageChatCreatedUpdate) убрано: его нет
+    # ни в официальной спецификации github.com/max-messenger/api-schema, ни в
+    # каталоге событий на dev.max.ru, а в оригинале оно не попало даже в
+    # Update.discriminator.mapping. Оно единственное тянуло в контракт Chat со
+    # словарём participants (additionalProperties: {$ref}), который
+    # КБ-валидатор в Jenkins отвергает. Сценарий — создание группового чата
+    # кнопкой chat — вне объёма.
+    r"^schemas\.MessageChatCreatedUpdate: схема отсутствует у нас$",
+    # PhotoAttachmentRequestPayload.photos убран: словарь токенов
+    # (additionalProperties: {$ref: PhotoToken}) КБ-валидатор в Jenkins
+    # отвергает — у object-схемы должно быть additionalProperties: false.
+    # Документация MAX отправляет фото через token или url, а словарь — форма
+    # ответа на загрузку: токен из него кладётся в token. PhotoToken после
+    # этого ни на что не ссылается и вырезается как недостижимая.
+    r"(^schemas\.PhotoAttachmentRequestPayload|<image>\.payload)\.photos: свойства нет у нас$",
+    r"^schemas\.PhotoToken: схема отсутствует у нас$",
     # CallbackAnswer.notification есть в официальной спецификации
     # github.com/max-messenger/api-schema, но отсутствует в схеме с dev.max.ru,
     # с которой снят reference/. Без него бот не может ответить на нажатие
@@ -177,8 +192,10 @@ DEVIATIONS = [
     # «Potentially unused component». Отсутствуют по двум причинам:
     # 1) обслуживают выключенный набор маршрутов (`// import
     #    "./routes/chats.tsp"` в main.tsp) — сюда же попадают их транзитивные
-    #    зависимости (ChatAdmin, ChatAdminPermission, ChatMember,
-    #    FailedUserDetails, SenderAction), больше ниоткуда не достижимые;
+    #    зависимости (Chat, ChatAdmin, ChatAdminPermission, ChatMember,
+    #    ChatStatus, FailedUserDetails, Image, SenderAction, UserWithPhoto),
+    #    больше ниоткуда не достижимые — Chat и её зависимости стали такими,
+    #    когда убрали событие message_chat_created (см. ниже);
     # 2) сироты самого оригинала, на которые и он ни разу не ссылается —
     #    BotPatch, PhotoTokens;
     # 3) чистая база наследования, чьи поля вписаны в наследников spread'ом
@@ -188,8 +205,9 @@ DEVIATIONS = [
     # Первопричина остаётся видимой как отдельные расхождения
     # `paths./chats*: путь отсутствует у нас` — здесь глушим только следствие.
     # Список пришпилен поимённо: пропажа любой ДРУГОЙ схемы всплывёт как DIFF.
-    r"^schemas\.(ActionRequestBody|BotPatch|ChatAdmin|ChatAdminPermission"
-    r"|ChatAdminsList|ChatList|ChatMember|ChatMembersList|ChatPatch"
+    r"^schemas\.(ActionRequestBody|BotPatch|Chat|ChatAdmin|ChatAdminPermission"
+    r"|ChatAdminsList|ChatList|ChatMember|ChatMembersList|ChatPatch|ChatStatus"
+    r"|Image|UserWithPhoto"
     r"|FailedUserDetails|GetPinnedMessageResult|ModifyMembersResult|AttachmentPayload"
     r"|PhotoTokens|PinMessageBody|SenderAction|UserIdsList)"
     r": схема отсутствует у нас$",
